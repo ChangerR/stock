@@ -1,0 +1,8 @@
+extends: baseline_688981.yaml
+name: baseline_688981_histfees
+description: >
+  修正费用口径后的基线：印花税 2023-08-28 前 0.1%、之后 0.05%；过户费 2022-04-29 前 0.002%、之后 0.001%。
+  其余与原型相同。这是后续所有研究的主口径。
+fees:
+  stamp_duty: historical
+  transfer: historical

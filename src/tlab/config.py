@@ -45,8 +45,25 @@ class RunConfig:
         return p
 
 
+def _deep_merge(base: dict, over: dict) -> dict:
+    out = copy.deepcopy(base)
+    for k, v in over.items():
+        out[k] = _deep_merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+    return out
+
+
+def load_raw_config(path: str | Path) -> dict:
+    """支持 `extends: 其他配置.yaml`（相对路径），子配置按键深度覆盖父配置；列表整体替换。"""
+    path = Path(path)
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    parent = raw.pop("extends", None)
+    if parent:
+        raw = _deep_merge(load_raw_config(path.parent / parent), raw)
+    return raw
+
+
 def load_config(path: str | Path) -> RunConfig:
-    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    raw = load_raw_config(path)
     tickers = [TickerSpec(**t) if isinstance(t, dict) else TickerSpec(code=t, base_shares=raw["base_shares"])
                for t in raw["tickers"]]
     periods = {k: (str(v[0]), str(v[1])) for k, v in raw["periods"].items()}
