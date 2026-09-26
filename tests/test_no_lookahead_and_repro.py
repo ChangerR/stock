@@ -84,3 +84,20 @@ def test_baseline_reproduces_prototype(cfg):
 def test_prototype_grid_cell(cfg):
     r = run_one(cfg, cfg.tickers[0], k=3.0, s=1.5)
     assert round(r["样本内"].daily.pnl.sum(), 1) == -11918.5 and len(r["样本外"].trips) == 334
+
+
+def test_regime_filter_none_equals_baseline(cfg):
+    base = run_one(cfg, cfg.tickers[0])
+    cfg2 = load_config(REPO_ROOT / "configs" / "baseline_688981.yaml")
+    cfg2.strategy = "vwap_band_regime"
+    reg = run_one(cfg2, cfg2.tickers[0], filter="none")
+    for label in base:
+        assert base[label].trips.equals(reg[label].trips)
+
+
+def test_config_extends_and_ticker_overrides():
+    c = load_config(REPO_ROOT / "configs" / "multistock.yaml")
+    assert c.fees["stamp_duty"] == "historical" and c.params["k"] == 4.0
+    t = {x.code: x for x in c.tickers}["sz.300033"]
+    assert c.strategy_params(t)["lot"] == 100 and c.engine_config(t).base_shares == 200
+    assert c.engine_config(t).fees.cost("sell", 100, 100, "2023-01-03") == pytest.approx(5 + 0.1 + 10)

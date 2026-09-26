@@ -1,4 +1,8 @@
+# 倒T 趋势过滤实验明细（688981，历史费率）
+
 > **非投资建议，历史不代表未来。** 本仓库仅做历史数据研究，不含任何下单或券商接口。
+
+规则见 ../preregistration.md，结论见 ../README.md §4。
 
 最终方案：`{"filter": "vwap_slope", "th": 0.5, "symmetric": false}`
 

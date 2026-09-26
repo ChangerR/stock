@@ -109,7 +109,7 @@ def main():
     allrows.to_csv(OUT / "candidates.csv", index=False)
 
     # ---- 表格 ----
-    L = [DISCLAIMER, "", f"最终方案：`{json.dumps(final_ov, ensure_ascii=False)}`", ""]
+    L = ["# 倒T 趋势过滤实验明细（688981，历史费率）", "", DISCLAIMER, "", "规则见 ../preregistration.md，结论见 ../README.md §4。", "", f"最终方案：`{json.dumps(final_ov, ensure_ascii=False)}`", ""]
     show = allrows.copy()
     show["symmetric"] = show.symmetric.map({True: "是", False: "否"}).fillna("")
     L += ["## 全部候选（样本内选择；样本外仅展示）", "",

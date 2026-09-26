@@ -15,7 +15,7 @@ import pandas as pd
 from tlab.analysis import band_events, summarize_events
 from tlab.config import load_config
 from tlab.data.store import DEFAULT_DATA_DIR, _path, fetch
-from tlab.metrics import by_daytype, paired_diff_ci, summary, to_md
+from tlab.metrics import bootstrap_ci, by_daytype, paired_diff_ci, summary, to_md
 from tlab.report import DISCLAIMER, concat_daily, plot_equity
 from tlab.runner import load_cached, run_one
 from tlab.strategies.vwap_band_regime import describe
@@ -34,6 +34,8 @@ def main(cfg_path):
     start, end = cfg.raw.get("fetch_range", ["2020-07-01", "2026-09-24"])
     OUT.mkdir(parents=True, exist_ok=True)
     rows, L, failed = [], [DISCLAIMER, ""], []
+    pooled: dict[tuple[str, str], list[pd.Series]] = {}
+    ref_code = cfg.raw.get("reference", "sh.688981")
     for t in cfg.tickers:
         if not (_path(DEFAULT_DATA_DIR, t.code, "5").exists() and _path(DEFAULT_DATA_DIR, t.code, "d").exists()):
             try:
@@ -49,6 +51,8 @@ def main(cfg_path):
         st = {}
         for name, r in res.items():
             for label in cfg.periods:
+                if t.code != ref_code:
+                    pooled.setdefault((name, label), []).append(r[label].daily.pnl)
                 s = summary(r[label])
                 st[f"{name} / {label}"] = s
                 rows.append(dict(code=t.code, name=nm, variant=name, period=label, net=s["做T净收益(元)"],
@@ -87,9 +91,56 @@ def main(cfg_path):
         tab.columns = [f"{a} / {b}" for a, b in tab.columns]
         head = ["# 多股票检验明细", "", "## 汇总：做T 净超额收益（元，历史费率，已扣费用和滑点）", "",
                 tab.reset_index().to_markdown(index=False), ""]
+        pl = []
+        vf, vb, vz = f"过滤: {describe(final)}", "基线", "只做正T(对照)"
+        for label in cfg.periods:
+            agg = {k[0]: pd.concat(v, axis=1).fillna(0).sum(axis=1) for k, v in pooled.items() if k[1] == label}
+            if not agg:
+                continue
+            for name, s in agg.items():
+                lo, hi = bootstrap_ci(s.to_numpy())
+                pl.append({"时段": label, "方案": name, "合计净收益(元)": round(s.sum(), 1),
+                           "95%区间": f"[{lo:,.0f}, {hi:,.0f}]"})
+            for a, b in [(vf, vb), (vf, vz)]:
+                d, lo, hi = paired_diff_ci(agg[a], agg[b])
+                pl.append({"时段": label, "方案": f"{a} − {b}", "合计净收益(元)": round(d, 1),
+                           "95%区间": f"[{lo:,.0f}, {hi:,.0f}]"})
+        if pl:
+            head += [f"## 4 只新股票合并（不含参数来源 {ref_code}），逐日加总后自助法", "",
+                     pd.DataFrame(pl).to_markdown(index=False), ""]
         L = head + L
+    if len(df):
+        plot_summary(df, OUT / "summary_bars.png")
     (OUT / "details.md").write_text("\n".join(L) + "\n", encoding="utf-8")
     print("\n".join(L[:12]))
+
+
+def plot_summary(df: pd.DataFrame, path: Path):
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    from tlab.report import setup_fonts
+
+    setup_fonts()
+    periods = list(dict.fromkeys(df.period))
+    variants = list(dict.fromkeys(df.variant))
+    stocks = list(dict.fromkeys(zip(df.code, df.name)))
+    fig, axes = plt.subplots(1, len(periods), figsize=(14, 5.5), sharey=True)
+    w = 0.8 / len(variants)
+    for ax, p in zip(np.atleast_1d(axes), periods):
+        x = np.arange(len(stocks))
+        for j, v in enumerate(variants):
+            vals = [df[(df.code == c) & (df.variant == v) & (df.period == p)].net.iloc[0] for c, _ in stocks]
+            ax.bar(x + (j - (len(variants) - 1) / 2) * w, vals, w, label=v)
+        ax.axhline(0, color="black", lw=0.8)
+        ax.set_xticks(x, [f"{n}\n{c}" for c, n in stocks], fontsize=8.5)
+        ax.set_title(f"{p}：做T 净超额收益（元，>0 才跑赢只持有）")
+        ax.grid(axis="y", alpha=0.3)
+    np.atleast_1d(axes)[0].legend(fontsize=8.5)
+    fig.text(0.99, 0.005, "非投资建议，历史不代表未来", ha="right", fontsize=8, color="gray")
+    fig.tight_layout()
+    fig.savefig(path, dpi=120)
+    plt.close(fig)
 
 
 if __name__ == "__main__":
