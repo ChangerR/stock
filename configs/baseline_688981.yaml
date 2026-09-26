@@ -1,0 +1,28 @@
+name: baseline_688981
+description: >
+  基线：原型策略（自适应 VWAP 偏离带双向做T）在中芯国际 688981 上的移植，
+  费用/滑点/参数与原型完全一致（印花税全期按 0.05%），用于复现原型结果。
+tickers:
+  - {code: sh.688981, base_shares: 400}   # 示例底仓规模，仅用于研究，不代表任何真实持仓
+freq: "5"
+data_dir: data
+periods:
+  样本内: [2020-07-23, 2024-07-23]
+  样本外: [2024-07-24, 2026-09-24]
+engine:
+  force_flat_time: 1450
+  fill: next_open
+  enforce_limits: true
+  slippage: {pct: 0.0002, min_ticks: 1}
+fees:
+  commission: 0.00025
+  commission_min: 5.0
+  stamp_duty: 0.0005
+  transfer: 0.00001
+strategy:
+  name: vwap_band
+  params: {k: 4.0, s: 1.5, lot: 200, max_trips: 2, gate: 3.0, atr_days: 5,
+           entry_start: 945, entry_end: 1430, sides: both, halt_on_stop: true}
+grid:
+  k: [2.0, 3.0, 4.0]
+  s: [1.5, 2.5, 3.5]

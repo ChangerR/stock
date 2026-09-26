@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+# 临时/个人文件：不要把持仓、成本、账户信息放进仓库
+private/
+*.local.yaml
+data/cache/
+runs/
