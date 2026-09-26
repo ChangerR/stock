@@ -50,7 +50,7 @@ def main(cfg_path):
         for name, r in res.items():
             for label in cfg.periods:
                 s = summary(r[label])
-                st[f"{name} | {label}"] = s
+                st[f"{name} / {label}"] = s
                 rows.append(dict(code=t.code, name=nm, variant=name, period=label, net=s["做T净收益(元)"],
                                  trips=s["闭环次数"], bench=s["基准:只持有底仓盈亏(元)"],
                                  fees=s["费用合计(元)"], gross=s["毛收益(含滑点,未扣费)(元)"],
@@ -84,7 +84,7 @@ def main(cfg_path):
                                                     aggfunc="first")
         bench.columns = pd.MultiIndex.from_tuples([("只持有底仓", c) for c in bench.columns])
         tab = pd.concat([pv, bench], axis=1)
-        tab.columns = [f"{a} | {b}" for a, b in tab.columns]
+        tab.columns = [f"{a} / {b}" for a, b in tab.columns]
         head = ["# 多股票检验明细", "", "## 汇总：做T 净超额收益（元，历史费率，已扣费用和滑点）", "",
                 tab.reset_index().to_markdown(index=False), ""]
         L = head + L

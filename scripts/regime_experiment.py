@@ -122,7 +122,7 @@ def main():
     st = {}
     for name, r in comp.items():
         for label in ["样本内", "样本外"]:
-            st[f"{name} | {label}"] = summary(r[label])
+            st[f"{name} / {label}"] = summary(r[label])
     L += ["## 基线 / 对照 / 最终方案 指标", "", to_md(pd.DataFrame(st).reset_index().rename(columns={"index": "指标"})), ""]
     for name, r in comp.items():
         for label in ["样本内", "样本外"]:

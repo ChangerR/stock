@@ -8,4 +8,4 @@ dist/
 private/
 *.local.yaml
 data/cache/
-runs/
+/runs/
