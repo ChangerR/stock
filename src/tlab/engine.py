@@ -41,6 +41,7 @@ class Fill:
     price: float
     fee: float
     tag: str
+    slip: float = 0.0  # 滑点成本（元）= |成交价 - 无滑点参考价| × 数量
 
 
 @dataclass
@@ -148,7 +149,7 @@ class BacktestResult:
 
 
 TRIP_COLS = ["date", "entry_date", "dir", "entry_tag", "entry_sig_t", "entry_fill_t", "exit_sig_t",
-             "exit_fill_t", "qty", "buy_px", "sell_px", "reason", "gross", "fees", "net", "overnight"]
+             "exit_fill_t", "qty", "buy_px", "sell_px", "reason", "gross", "fees", "net", "overnight", "slip"]
 
 
 class Engine:
@@ -222,7 +223,8 @@ class Engine:
                     ctx.sellable -= order.qty
                     cash += px * order.qty - fee
                 ctx.shares = shares
-                f = Fill(date, st, int(ctx._t[j]), order.side, order.qty, px, fee, order.tag)
+                f = Fill(date, st, int(ctx._t[j]), order.side, order.qty, px, fee, order.tag,
+                         abs(px - raw) * order.qty)
                 fills.append(f)
                 day_fills += 1
                 base = cfg.base_shares
@@ -236,13 +238,14 @@ class Engine:
                     if trip is None and b0 == base:
                         trip = dict(entry_date=date, entry_day=day_no, entry_tag=order.tag, entry_sig_t=st,
                                     entry_fill_t=f.fill_time, dir="倒T" if order.side == "sell" else "正T",
-                                    buy_amt=0.0, sell_amt=0.0, buy_qty=0, sell_qty=0, fees=0.0)
+                                    buy_amt=0.0, sell_amt=0.0, buy_qty=0, sell_qty=0, fees=0.0, slip=0.0)
                     if trip is None:
                         continue
                     k = "buy" if order.side == "buy" else "sell"
                     trip[f"{k}_amt"] += px * q
                     trip[f"{k}_qty"] += q
                     trip["fees"] += fee_q
+                    trip["slip"] += f.slip * q / order.qty
                     if b1 == base:
                         gross = trip["sell_amt"] - trip["buy_amt"]
                         trips.append(dict(
@@ -251,7 +254,7 @@ class Engine:
                             exit_fill_t=f.fill_time, qty=trip["buy_qty"],
                             buy_px=trip["buy_amt"] / trip["buy_qty"], sell_px=trip["sell_amt"] / trip["sell_qty"],
                             reason=order.tag, gross=gross, fees=trip["fees"], net=gross - trip["fees"],
-                            overnight=trip["entry_date"] != date))
+                            overnight=trip["entry_date"] != date, slip=trip["slip"]))
                         trip = None
                 strategy.on_fill(f, ctx)
                 return True

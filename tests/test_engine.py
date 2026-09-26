@@ -143,3 +143,15 @@ def test_fill_crossing_base_splits_round_trips():
     assert list(res.trips.dir) == ["正T", "倒T"] and list(res.trips.qty) == [200, 200]
     assert res.trips.fees.sum() == pytest.approx(sum(f.fee for f in s.fills))
     assert res.daily.pnl.sum() == pytest.approx(res.trips.net.sum())
+
+
+def test_mark_to_market_across_ex_dividend():
+    # 第 1 天收盘 100；第 2 天每股派息 2 元 → 前收盘 98。倒T 跨夜：卖出 99.98，次日开盘 98 买回（+滑点 98.02）
+    md = make_md(STAR, [dict(date="2024-01-02", preclose=100.0, bars=flat(100.0)),
+                        dict(date="2024-01-03", preclose=98.0, bars=flat(98.0))])
+    s = Scripted(script={("2024-01-02", 1445): [("sell", 200, "open")]},
+                 preopen={"2024-01-03": [("buy", 200, "EXIT")]}, max_hold_days=1)
+    res = Engine(EngineConfig(base_shares=400)).run(md, s)
+    fees = sum(f.fee for f in s.fills)
+    assert res.daily.pnl.sum() == pytest.approx(200 * (99.98 - 98.02 - 2.0) - fees)   # 错过的 2 元分红计为相对基准的损失
+    assert res.trips.iloc[0].gross == pytest.approx(200 * (99.98 - 98.02))             # 闭环价差不含分红，会高估
