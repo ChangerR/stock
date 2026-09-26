@@ -1,0 +1,51 @@
+# 策略族普查的预注册参数网格（与 reports/survey/preregistration.md 一起、在运行前提交）。
+# 每个 family 的 configs 由若干 product（笛卡尔积）拼成；时间参数都是「信号 K 线结束时刻」HHMM，
+# 成交在下一根 K 线开盘价。每只股票的 lot / 底仓来自 configs/survey.yaml（继承 multistock.yaml）。
+families:
+  grid:
+    label: 网格（日内 / 多日）
+    strategy: grid
+    products:
+      - {mode: [pct], spacing: [0.01, 0.015, 0.02], anchor: [open, vwap]}
+      - {mode: [atr], spacing: [3, 5, 8], anchor: [open, vwap]}
+      - {mode: [pct], spacing: [0.02, 0.03, 0.05], anchor: [ma10], max_hold_days: [5]}
+      - {mode: [datr], spacing: [0.5, 1.0, 1.5], anchor: [ma10], max_hold_days: [5]}
+  orb:
+    label: 开盘区间突破（顺势）
+    strategy: orb
+    products:
+      - {n_or: [6, 12], buffer: [0.0, 0.5, 1.0], sides: [both, zheng]}
+  gap:
+    label: 跳空 fade / follow
+    strategy: gap
+    products:
+      - {theta: [0.5, 1.0, 1.5], mode: [fade, follow]}
+  xday_mr:
+    label: 跨日均值回归
+    strategy: xday_mr
+    products:
+      - {anchor: [ma20, pvwap], theta: [1.0, 1.5, 2.0], max_hold_days: [2, 5]}
+  tod:
+    label: 固定时刻 / 日内动量
+    strategy: tod
+    products:
+      - {mode: [fixed], side: [dao, zheng], entry: [935, 1000, 1030], exit: ["1125", EOD]}
+      - {mode: [fixed], side: [dao, zheng], entry: [1300], exit: [EOD]}
+      - {mode: [mom], theta: [0.0, 0.25, 0.5]}
+  vwap_eod:
+    label: VWAP 偏离带·出场改造
+    strategy: vwap_band_eod
+    products:
+      - {k: [3.0, 4.0, 5.0], s: [4.0, 8.0, 0.0]}
+  overnight:
+    label: 隔夜/日内收益分解（新增）
+    strategy: overnight
+    products:
+      - {side: [long, short], exit: [open, "955"]}
+
+selection:
+  min_pooled_is_trips: 100
+  n_families: 7
+  alpha: 0.05
+  dsr_threshold: 0.95
+  min_positive_stocks_oos: 4
