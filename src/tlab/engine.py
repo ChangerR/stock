@@ -5,7 +5,8 @@
   - T+1：当日可卖额度 = 开盘时持股数，只减不增；当日买入的股份当日不可卖。
   - 板块规则：申报数量（主板/创业板 100 股整数倍；科创板 >=200 股），涨跌幅（主板 10%、ST 5%、创业板/科创板 20%）。
     整根 K 线封死涨停时买单无法成交、封死跌停时卖单无法成交；成交价被限制在涨跌停价之内。
-  - 强制回到底仓：在 force_flat_time 这根 K 线收盘时，若持股 != 底仓，引擎自动下单回补/卖出（EOD）；
+  - 强制回到底仓：日内策略在 force_flat_time 这根 K 线收盘时，若持股 != 底仓，引擎自动下单回补/卖出（EOD）；
+    多日策略（max_hold_days=N）在偏离底仓后的第 N 个交易日 force_flat_time 强制回到底仓（TIME）；
     成交失败（封板）会逐根重试，当日仍失败则持仓过夜，次日开盘继续回补（CARRY）。
   - 盈亏口径：相对「只持有底仓」的超额收益，逐日盯市
     pnl_t = Δcash_t + (收盘持股 - 底仓) × close_t - (开盘持股 - 底仓) × preclose_t
@@ -113,8 +114,17 @@ class Strategy:
         """按日期索引的日级特征。第 t 行只能用 t 日开盘前已知的信息（tests 中有截断检验）。"""
         return pd.DataFrame(index=md.days.index)
 
-    def on_day_start(self, day: DayContext) -> None:
-        pass
+    @property
+    def max_hold_days(self) -> int:
+        """偏离底仓最多持有的交易日数：0 = 日内（当日 14:50 强平）；N = 第 N 个交易日 14:50 强制回到底仓。"""
+        return int(self.p.get("max_hold_days", 0))
+
+    def on_start(self) -> None:
+        """每次回测（每个时段）开始前调用，用于重置跨日状态。"""
+
+    def on_day_start(self, day: DayContext) -> list[Order] | None:
+        """开盘前回调。返回的指令以当日第一根 K 线开盘价成交（≈ 开盘集合竞价价格）。"""
+        return None
 
     def on_bar(self, ctx: DayContext) -> list[Order] | None:
         raise NotImplementedError
@@ -161,6 +171,9 @@ class Engine:
         shares = cfg.base_shares
         cash = 0.0
         trip = None
+        hold = strategy.max_hold_days
+        day_no = -1
+        strategy.on_start()
         trips, fills, rejects, daily = [], [], [], []
 
         for date in dates:
@@ -176,10 +189,15 @@ class Engine:
             ctx.sellable = shares
             sod_shares, sod_cash = shares, cash
             n = ctx.n
-            carry = shares != cfg.base_shares  # 昨日未能回到底仓：开盘即回补，回补完成前不调用策略
+            day_no += 1
+            age = (lambda: day_no - trip["entry_day"] if trip is not None else 0)
+            # 超过持有期仍未回到底仓（通常是封板未能回补）：开盘即回补，回补完成前不调用策略
+            carry = shares != cfg.base_shares and age() > hold
+            pre = strategy.on_day_start(ctx)
             if carry:
                 ctx.pending = [self._restore_order(ctx, "CARRY")]
-            strategy.on_day_start(ctx)
+            elif pre:
+                ctx.pending = [o for o in pre if o is not None and o.qty > 0]
             sig_t = {id(o): 0 for o in ctx.pending}
             day_fills = 0
 
@@ -207,16 +225,25 @@ class Engine:
                 f = Fill(date, st, int(ctx._t[j]), order.side, order.qty, px, fee, order.tag)
                 fills.append(f)
                 day_fills += 1
-                if trip is None and before == cfg.base_shares:
-                    trip = dict(entry_date=date, entry_tag=order.tag, entry_sig_t=st, entry_fill_t=f.fill_time,
-                                dir="倒T" if order.side == "sell" else "正T",
-                                buy_amt=0.0, sell_amt=0.0, buy_qty=0, sell_qty=0, fees=0.0)
-                if trip is not None:
+                base = cfg.base_shares
+                if (before - base) * (shares - base) < 0:  # 一笔成交越过底仓：拆成「平旧闭环」+「开新闭环」
+                    q1 = abs(before - base)
+                    parts = [(q1, before, base), (order.qty - q1, base, shares)]
+                else:
+                    parts = [(order.qty, before, shares)]
+                for q, b0, b1 in parts:
+                    fee_q = fee * q / order.qty
+                    if trip is None and b0 == base:
+                        trip = dict(entry_date=date, entry_day=day_no, entry_tag=order.tag, entry_sig_t=st,
+                                    entry_fill_t=f.fill_time, dir="倒T" if order.side == "sell" else "正T",
+                                    buy_amt=0.0, sell_amt=0.0, buy_qty=0, sell_qty=0, fees=0.0)
+                    if trip is None:
+                        continue
                     k = "buy" if order.side == "buy" else "sell"
-                    trip[f"{k}_amt"] += px * order.qty
-                    trip[f"{k}_qty"] += order.qty
-                    trip["fees"] += fee
-                    if shares == cfg.base_shares:
+                    trip[f"{k}_amt"] += px * q
+                    trip[f"{k}_qty"] += q
+                    trip["fees"] += fee_q
+                    if b1 == base:
                         gross = trip["sell_amt"] - trip["buy_amt"]
                         trips.append(dict(
                             date=date, entry_date=trip["entry_date"], dir=trip["dir"], entry_tag=trip["entry_tag"],
@@ -243,7 +270,8 @@ class Engine:
                 # 2) 本根收盘时生成新指令
                 if ctx.hhmm >= cfg.force_flat_time:
                     ctx.force_flat = True
-                    new = [self._restore_order(ctx, "EOD")] if shares != cfg.base_shares else []
+                    due = shares != cfg.base_shares and age() >= hold
+                    new = [self._restore_order(ctx, "EOD" if hold == 0 else "TIME")] if due else []
                 elif carry:
                     new = [self._restore_order(ctx, "CARRY")]
                 else:

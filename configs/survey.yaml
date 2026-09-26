@@ -1,0 +1,8 @@
+extends: multistock.yaml
+name: survey
+description: >
+  策略族普查：5 只股票、历史费率、与第一期相同的样本切分与成交/滑点假设。
+  策略与参数网格见 configs/survey_grid.yaml，规则见 reports/survey/preregistration.md。
+strategy:
+  name: grid
+  params: {}

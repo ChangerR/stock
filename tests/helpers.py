@@ -37,11 +37,14 @@ class Scripted(Strategy):
 
     name = "scripted"
     version = "test"
-    defaults = {"script": {}}
+    defaults = {"script": {}, "preopen": {}, "max_hold_days": 0}
 
     def __init__(self, **p):
         super().__init__(**p)
         self.fills, self.rejects, self.seen_len = [], [], []
+
+    def on_day_start(self, ctx):
+        return [Order(*o) for o in self.p["preopen"].get(ctx.date, [])]
 
     def on_bar(self, ctx):
         self.seen_len.append((ctx.i, len(ctx.close)))

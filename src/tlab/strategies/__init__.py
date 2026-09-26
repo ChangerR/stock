@@ -20,4 +20,4 @@ def make(name: str, **params) -> Strategy:
         raise ValueError(f"未知策略 {name}，可选: {sorted(REGISTRY)}") from None
 
 
-from . import vwap_band, vwap_band_regime  # noqa: E402,F401
+from . import families, vwap_band, vwap_band_regime  # noqa: E402,F401
