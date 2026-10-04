@@ -101,3 +101,35 @@ def test_config_extends_and_ticker_overrides():
     t = {x.code: x for x in c.tickers}["sz.300033"]
     assert c.strategy_params(t)["lot"] == 100 and c.engine_config(t).base_shares == 200
     assert c.engine_config(t).fees.cost("sell", 100, 100, "2023-01-03") == pytest.approx(5 + 0.1 + 10)
+
+
+@pytest.mark.parametrize("strat,params", [
+    ("grid", dict(mode="atr", spacing=3, anchor="vwap")),
+    ("grid", dict(mode="pct", spacing=0.02, anchor="ma10", max_hold_days=5)),
+    ("orb", dict(n_or=6, buffer=0.0)),
+    ("gap", dict(theta=0.5, mode="fade")),
+    ("tod", dict(mode="mom", theta=0.0)),
+    ("xday_mr", dict(anchor="pvwap", theta=1.0, max_hold_days=2, decide_at=1030)),  # 提前决策时刻，让单日测试有成交可比
+    ("vwap_band_eod", dict(k=3.0, s=0.0)),
+])
+def test_family_decisions_ignore_future_bars(md, cfg, strat, params):
+    t = cfg.tickers[0]
+    ecfg = cfg.engine_config(t)
+    s = make(strat, **params)
+    if hasattr(s, "bind_costs"):
+        s.bind_costs(ecfg.fees, ecfg.slippage)
+    feats = s.daily_features(md)
+    rng = np.random.default_rng(7)
+    compared = 0
+    for date in md.days.index[300:1400:23]:
+        base = Engine(ecfg).run(md, s, [date], features=feats).fills
+        j = int(rng.integers(3, 44))
+        bars = md.bars.copy()
+        idx = bars.index[bars.date == date]
+        bars.loc[idx[j + 1:], ["open", "high", "low", "close"]] *= rng.uniform(0.9, 1.1, size=(len(idx) - j - 1, 1))
+        cut = int(bars.loc[idx[j], "hhmm"])
+        alt = Engine(ecfg).run(MarketData(md.code, bars, md.days), s, [date], features=feats).fills
+        pick = lambda f: [] if f.empty else [tuple(r) for r in f[f.sig_time < cut][["sig_time", "side", "qty", "price", "tag"]].values]
+        assert pick(base) == pick(alt), (strat, date)
+        compared += len(pick(base))
+    assert compared > 0

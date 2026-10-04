@@ -23,6 +23,7 @@ def summary(res: BacktestResult) -> dict:
     sd = dl.pnl.std(ddof=1)
     t_day = float(dl.pnl.mean() / sd * np.sqrt(len(dl))) if sd > 0 else float("nan")
     lo, hi = bootstrap_ci(dl.pnl.to_numpy())
+    fees, slip = cost_totals(res)
     return {
         "区间": f"{dl.index[0]}~{dl.index[-1]}" if len(dl) else "-",
         "交易日数": len(dl),
@@ -30,8 +31,9 @@ def summary(res: BacktestResult) -> dict:
         "闭环次数": n,
         "倒T/正T": f"{(tr.dir == '倒T').sum()}/{(tr.dir == '正T').sum()}",
         "做T净收益(元)": round(net, 1),
-        "毛收益(含滑点,未扣费)(元)": round(float(tr.gross.sum()), 1) if n else 0.0,
-        "费用合计(元)": round(float(tr.fees.sum()), 1) if n else 0.0,
+        "毛收益(含滑点,未扣费)(元)": round(net + fees, 1),
+        "费用合计(元)": round(fees, 1),
+        "滑点合计(元)": round(slip, 1),
         "胜率(净)": f"{len(wins) / n:.1%}" if n else "-",
         "平均盈利(元)": round(float(wins.net.mean()), 1) if len(wins) else 0.0,
         "平均亏损(元)": round(float(losses.net.mean()), 1) if len(losses) else 0.0,
@@ -48,6 +50,15 @@ def summary(res: BacktestResult) -> dict:
     }
 
 
+def cost_totals(res: BacktestResult) -> tuple[float, float]:
+    """按成交汇总的费用与滑点。毛收益统一定义为「逐日盯市净收益 + 费用」，这样跨除权除息日的持仓也能正确对账
+    （闭环价差 gross 在跨除权日时会把除权造成的价格下跌误算为收益）。"""
+    fl = res.fills
+    if fl is None or fl.empty:
+        return 0.0, 0.0
+    return float(fl.fee.sum()), float(fl.slip.sum()) if "slip" in fl else 0.0
+
+
 def bootstrap_ci(x: np.ndarray, n_boot: int = 2000, seed: int = 0, alpha: float = 0.05) -> tuple[float, float]:
     """按交易日独立重抽样的「总净收益」置信区间（日内策略日间相关性弱，iid 自助法足够粗看）。"""
     if len(x) == 0:
@@ -55,6 +66,46 @@ def bootstrap_ci(x: np.ndarray, n_boot: int = 2000, seed: int = 0, alpha: float 
     rng = np.random.default_rng(seed)
     sums = x[rng.integers(0, len(x), size=(n_boot, len(x)))].sum(axis=1)
     return float(np.quantile(sums, alpha / 2)), float(np.quantile(sums, 1 - alpha / 2))
+
+
+def bootstrap_p_positive(x: np.ndarray, n_boot: int = 20000, seed: int = 0) -> float:
+    """单侧自助法 p 值：重抽样总和 <= 0 的比例（原假设：期望 <= 0）。"""
+    if len(x) == 0:
+        return 1.0
+    rng = np.random.default_rng(seed)
+    out, left = 0, n_boot
+    while left > 0:
+        k = min(left, 2000)
+        out += int((x[rng.integers(0, len(x), size=(k, len(x)))].sum(axis=1) <= 0).sum())
+        left -= k
+    return out / n_boot
+
+
+def deflated_sharpe(x: np.ndarray, sr_trials: np.ndarray, var_sr: float | None = None) -> dict:
+    """Bailey & López de Prado (2014) Deflated Sharpe Ratio。
+    x：被选中策略的日度收益序列；sr_trials：所有试验（配置）的日夏普率（同一口径），N = len(sr_trials)。
+    返回 {sr, sr0, dsr}：sr0 为 N 次独立试验下最大夏普率的期望，dsr = P(真实 SR > sr0)。"""
+    from statistics import NormalDist
+
+    nd = NormalDist()
+    x = np.asarray(x, float)
+    T = len(x)
+    sd = x.std(ddof=1)
+    sr = x.mean() / sd if sd > 0 else 0.0
+    N = len(sr_trials)
+    v = var_sr if var_sr is not None else (float(np.var(sr_trials, ddof=1)) if N > 1 else 0.0)
+    gamma = 0.5772156649
+    sr0 = np.sqrt(v) * ((1 - gamma) * nd.inv_cdf(1 - 1 / N) + gamma * nd.inv_cdf(1 - 1 / (N * np.e))) if N > 1 else 0.0
+    z = (x - x.mean()) / sd if sd > 0 else x * 0
+    skew, kurt = float((z ** 3).mean()), float((z ** 4).mean())
+    denom = np.sqrt(max(1e-12, 1 - skew * sr + (kurt - 1) / 4 * sr ** 2))
+    dsr = nd.cdf((sr - sr0) * np.sqrt(T - 1) / denom)
+    return {"sr": float(sr), "sr0": float(sr0), "dsr": float(dsr), "N": N, "T": T}
+
+
+def max_drawdown(pnl: pd.Series) -> float:
+    cum = pnl.cumsum()
+    return float((cum - cum.cummax().clip(lower=0)).min()) if len(cum) else 0.0
 
 
 def paired_diff_ci(a: pd.Series, b: pd.Series, **kw) -> tuple[float, float, float]:

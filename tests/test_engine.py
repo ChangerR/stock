@@ -111,3 +111,47 @@ def test_close_fill_mode_is_same_bar():
     md = make_md(STAR, [dict(date="2024-01-02", preclose=100.0, bars=bars)])
     _, s = run(md, {("2024-01-02", 955): [("sell", 200, "open_dao")]}, fill="close")
     assert s.fills[0].fill_time == 955 and s.fills[0].price == pytest.approx(100.38)
+
+
+def _days(n, px=100.0):
+    return [dict(date=f"2024-01-{2 + k:02d}", preclose=px, bars=flat(px)) for k in range(n)]
+
+
+def test_multi_day_hold_and_time_stop():
+    md = make_md(STAR, _days(4))
+    s = Scripted(script={("2024-01-02", 1000): [("buy", 200, "open")]}, max_hold_days=2)
+    res = Engine(EngineConfig(base_shares=400)).run(md, s)
+    assert list(res.daily.shares_eod) == [600, 600, 400, 400]     # 第 2 个交易日 14:50 强制回到底仓
+    tr = res.trips.iloc[0]
+    assert (tr.reason, tr.entry_date, tr.date, tr.overnight) == ("TIME", "2024-01-02", "2024-01-04", True)
+    assert res.daily.pnl.sum() == pytest.approx(tr.net)
+
+
+def test_preopen_order_fills_at_first_bar_open():
+    bars = flat(100.0)
+    bars[0] = (99.0, 100.0, 99.0, 100.0)
+    md = make_md(STAR, [dict(date="2024-01-02", preclose=100.0, bars=bars)])
+    s = Scripted(preopen={"2024-01-02": [("sell", 200, "pre")]})
+    Engine(EngineConfig(base_shares=400)).run(md, s)
+    assert (s.fills[0].sig_time, s.fills[0].fill_time, s.fills[0].price) == (0, 935, 98.98)
+
+
+def test_fill_crossing_base_splits_round_trips():
+    d = "2024-01-02"
+    md = make_md(STAR, [dict(date=d, preclose=100.0, bars=flat(100.0))])
+    res, s = run(md, {(d, 955): [("buy", 200, "open_zheng")], (d, 1000): [("sell", 400, "flip")]})
+    assert list(res.trips.dir) == ["正T", "倒T"] and list(res.trips.qty) == [200, 200]
+    assert res.trips.fees.sum() == pytest.approx(sum(f.fee for f in s.fills))
+    assert res.daily.pnl.sum() == pytest.approx(res.trips.net.sum())
+
+
+def test_mark_to_market_across_ex_dividend():
+    # 第 1 天收盘 100；第 2 天每股派息 2 元 → 前收盘 98。倒T 跨夜：卖出 99.98，次日开盘 98 买回（+滑点 98.02）
+    md = make_md(STAR, [dict(date="2024-01-02", preclose=100.0, bars=flat(100.0)),
+                        dict(date="2024-01-03", preclose=98.0, bars=flat(98.0))])
+    s = Scripted(script={("2024-01-02", 1445): [("sell", 200, "open")]},
+                 preopen={"2024-01-03": [("buy", 200, "EXIT")]}, max_hold_days=1)
+    res = Engine(EngineConfig(base_shares=400)).run(md, s)
+    fees = sum(f.fee for f in s.fills)
+    assert res.daily.pnl.sum() == pytest.approx(200 * (99.98 - 98.02 - 2.0) - fees)   # 错过的 2 元分红计为相对基准的损失
+    assert res.trips.iloc[0].gross == pytest.approx(200 * (99.98 - 98.02))             # 闭环价差不含分红，会高估
