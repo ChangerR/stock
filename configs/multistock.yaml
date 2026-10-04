@@ -1,0 +1,19 @@
+extends: baseline_688981_histfees.yaml
+name: multistock
+description: >
+  多股票检验：股票由 scripts/screen_universe.py 按预注册规则（只用样本内日线）选出。
+  每次做T 股数 = 200 × 79.57（688981 样本内首日前收）/ 该股同日前收，取最近的合规数量；底仓 = 2 × lot。
+  策略参数与 688981 完全相同，不重新调参。
+tickers:
+  - {code: sh.688981, base_shares: 400, lot: 200}   # 参照
+  - {code: sh.688099, base_shares: 564, lot: 282}   # 科创板，前收 56.52
+  - {code: sz.300033, base_shares: 200, lot: 100}   # 创业板，前收 151.91
+  - {code: sh.603369, base_shares: 800, lot: 400}   # 沪市主板，前收 44.78
+  - {code: sz.000596, base_shares: 200, lot: 100}   # 深市主板，前收 194.90
+names:
+  sh.688981: 中芯国际
+  sh.688099: 晶晨股份
+  sz.300033: 同花顺
+  sh.603369: 今世缘
+  sz.000596: 古井贡酒
+fetch_range: [2020-07-01, 2026-09-24]

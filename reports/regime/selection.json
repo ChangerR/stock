@@ -1,0 +1,56 @@
+{
+  "min_is_trips": 134.0,
+  "best_skip": {
+    "filter": "vwap_slope",
+    "th": 0.5,
+    "symmetric": false
+  },
+  "best_skip_is_net": -2422.3,
+  "flip_is_net": -3434.2,
+  "use_flip": false,
+  "final": {
+    "filter": "vwap_slope",
+    "th": 0.5,
+    "symmetric": false
+  },
+  "final_is_net": -2422.3,
+  "final_oos_net": -1870.8,
+  "baseline_is_net": -5925.9,
+  "baseline_oos_net": -6526.5,
+  "proto_fees": {
+    "final": {
+      "样本内": -1970.6,
+      "样本外": -1870.8
+    },
+    "baseline": {
+      "样本内": -5143.5,
+      "样本外": -6526.5
+    }
+  },
+  "paired_bootstrap": {
+    "样本内": {
+      "vs_baseline": [
+        3503.7,
+        441.7,
+        6554.7
+      ],
+      "vs_zheng_only": [
+        -396.7,
+        -1913.1,
+        1203.5
+      ]
+    },
+    "样本外": {
+      "vs_baseline": [
+        4655.7,
+        -1052.4,
+        11165.3
+      ],
+      "vs_zheng_only": [
+        -2508.3,
+        -6878.3,
+        1741.5
+      ]
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "sh.603369_5min.csv.gz": {
+    "source": "baostock",
+    "adjust": "none (baostock adjustflag=3)",
+    "first_date": "2020-07-01",
+    "last_date": "2026-09-24",
+    "rows": 72768,
+    "sha256": "039aed00b3c9e6287ae53e4682d512acd9e965978cb402c9b113746ef1decc4b",
+    "fetched_at": "2026-09-26"
+  },
+  "sh.603369_d.csv.gz": {
+    "source": "baostock",
+    "adjust": "none (baostock adjustflag=3)",
+    "first_date": "2020-07-01",
+    "last_date": "2026-09-24",
+    "rows": 1516,
+    "sha256": "be55bec49a792f2527a37e369e2ce28f6b9577ae1917da855ecbbe97f03d3e10",
+    "fetched_at": "2026-09-26"
+  },
+  "sh.688099_5min.csv.gz": {
+    "source": "baostock",
+    "adjust": "none (baostock adjustflag=3)",
+    "first_date": "2020-07-01",
+    "last_date": "2026-09-24",
+    "rows": 72768,
+    "sha256": "b5550b0f39d38f696a539996bb90deeda59db9321a84efef1185b9dea3326d08",
+    "fetched_at": "2026-09-26"
+  },
+  "sh.688099_d.csv.gz": {
+    "source": "baostock",
+    "adjust": "none (baostock adjustflag=3)",
+    "first_date": "2020-07-01",
+    "last_date": "2026-09-24",
+    "rows": 1516,
+    "sha256": "4e31055cad1e317740219c5e83aca24aada68659c6a7cb766966c6dcbd4997db",
+    "fetched_at": "2026-09-26"
+  },
+  "sh.688981_5min.csv.gz": {
+    "source": "baostock",
+    "adjust": "none (baostock adjustflag=3)",
+    "first_date": "2020-07-16",
+    "last_date": "2026-09-24",
+    "rows": 72240,
+    "sha256": "564a2e4365c4601c9485d8d37febc5392a64d2dd5816943d9e973cbb29993426",
+    "fetched_at": "2026-09-26"
+  },
+  "sh.688981_d.csv.gz": {
+    "source": "baostock",
+    "adjust": "none (baostock adjustflag=3)",
+    "first_date": "2020-07-16",
+    "last_date": "2026-09-24",
+    "rows": 1505,
+    "sha256": "70cde1338210af0938b1daa5c5228adc8d2f4e358c4ea9359aa90378106bb1a2",
+    "fetched_at": "2026-09-26"
+  },
+  "sz.000596_5min.csv.gz": {
+    "source": "baostock",
+    "adjust": "none (baostock adjustflag=3)",
+    "first_date": "2020-07-01",
+    "last_date": "2026-09-24",
+    "rows": 72768,
+    "sha256": "00abc29e997ca2a088f74d34eceb506da237800aac0030f0527f33ef926c3cc7",
+    "fetched_at": "2026-09-26"
+  },
+  "sz.000596_d.csv.gz": {
+    "source": "baostock",
+    "adjust": "none (baostock adjustflag=3)",
+    "first_date": "2020-07-01",
+    "last_date": "2026-09-24",
+    "rows": 1516,
+    "sha256": "995d8804b58509b1be9ab65fe4e6b66a235a45d6e19962832cf56562a09b67d7",
+    "fetched_at": "2026-09-26"
+  },
+  "sz.300033_5min.csv.gz": {
+    "source": "baostock",
+    "adjust": "none (baostock adjustflag=3)",
+    "first_date": "2020-07-01",
+    "last_date": "2026-09-24",
+    "rows": 72768,
+    "sha256": "cb37f00a5e2661589f30df1ca1469a433d1fd4d9df769fc182c289bc7d7fd096",
+    "fetched_at": "2026-09-26"
+  },
+  "sz.300033_d.csv.gz": {
+    "source": "baostock",
+    "adjust": "none (baostock adjustflag=3)",
+    "first_date": "2020-07-01",
+    "last_date": "2026-09-24",
+    "rows": 1516,
+    "sha256": "f472e054faf86265ac2eea72072b254df6dde36dcd0f4e638fda0119a8f4b7da",
+    "fetched_at": "2026-09-26"
+  }
+}
